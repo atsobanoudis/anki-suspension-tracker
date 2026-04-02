@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import datetime
 from aqt import mw, gui_hooks
+from aqt.browser import Browser
 
 try:
     from anki.collection import BrowserColumns
@@ -38,6 +39,7 @@ TOKEN_RE = re.compile(
 # State for tracking changes
 _suspended_snapshot: set[int] = set()
 _snapshot_loaded = False
+_is_processing = False
 
 def _set_event_tag(note, prefix: str, date_str: str) -> None:
     note.tags = [t for t in note.tags if not t.startswith(f"{prefix}::")]
@@ -78,26 +80,38 @@ def _load_snapshot() -> None:
     _snapshot_loaded = True
 
 def _on_operation_did_execute(changes, handler=None) -> None:
-    global _suspended_snapshot, _snapshot_loaded
+    global _suspended_snapshot, _snapshot_loaded, _is_processing
+
+    if _is_processing or not mw.col:
+        return
 
     if not _snapshot_loaded:
         _load_snapshot()
-
-    if not getattr(changes, "study_queues", False):
         return
 
     current = _fetch_suspended_ids()
     new_sus = current - _suspended_snapshot
     new_unsus = _suspended_snapshot - current
+    
+    # immediate update
+    _suspended_snapshot = current
 
-    if new_sus or new_unsus:
+    if not new_sus and not new_unsus:
+        return
+
+    _is_processing = True
+    try:
         today = datetime.date.today().isoformat()
         if new_sus:
             _stamp_notes(list(new_sus), TAG_SUSPEND, today)
         if new_unsus:
             _stamp_notes(list(new_unsus), TAG_UNSUSPEND, today)
 
-    _suspended_snapshot = current
+        # force note reload
+        if hasattr(mw, "browser") and mw.browser:
+            mw.browser.editor.loadNote()
+    finally:
+        _is_processing = False
 
 def _in_range(date_str: str, start: str, end: str) -> bool:
     try:
