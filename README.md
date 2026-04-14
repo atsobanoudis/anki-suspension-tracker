@@ -7,7 +7,10 @@ Every time a card is suspended or unsuspended, the add-on writes a tag to the no
 These tags are overwritten with the most recent event date. The add-on also provides "Suspended" and "Unsuspended" browser columns which can be enabled by right-clicking the browser's column header.
 
 ### Searching
-Search using standard tag syntax ~~or custom range token~~:
+Search using GUI or standard tag syntax ~~or custom range token~~:
+
+**GUI Search** <br>
+A dedicated "Search by Date" menu to visually select date ranges without typing tokens. 
 
 **Standard Search** <br>
 `tag:suspension-tracker::unsuspended::2026-03-31` <br>
@@ -17,8 +20,6 @@ Search using standard tag syntax ~~or custom range token~~:
 ~~`tracker:unsuspended:2026-03-01:2026-04-15` <br>
 `tracker:suspended:2026-03-01:*`~~
 
-~~**UI Search**~~ (Planned) <br>
-~~A dedicated "Search by Date" menu to visually select date ranges without typing tokens.~~  
 
 ### Usage Notes
 Tags are stored on the **note**. If a note has multiple cards, the tag reflects the date of the most recently modified card. </br>
