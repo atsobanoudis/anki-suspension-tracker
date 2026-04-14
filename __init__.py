@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 import datetime
 from aqt import mw, gui_hooks
+from aqt.qt import *
+from .gui import DateRangeDialog
 
 try:
     from anki.collection import BrowserColumns
@@ -31,7 +33,7 @@ EVENT_MAP = {
 
 _DATE_REGEX = r'(?:\d{4}-\d{2}-\d{2}|\*)'
 TOKEN_RE = re.compile(
-    rf'\btracker:(unsuspended|suspended):({_DATE_REGEX}):({_DATE_REGEX})\b',
+    rf'\b(?:tag:{NS}::(?:unsuspended|suspended)::[\d\-*]+|tracker:(?:unsuspended|suspended):({_DATE_REGEX}):({_DATE_REGEX}))\b',
     re.IGNORECASE,
 )
 
@@ -129,7 +131,8 @@ def _find_notes_in_range(tag_prefix: str, start: str, end: str) -> set[int]:
     return results
 
 def _on_browser_will_search(ctx) -> None:
-    match = TOKEN_RE.search(ctx.search)
+    # remove old tokens
+    match = re.search(rf'\btracker:(unsuspended|suspended):({_DATE_REGEX}):({_DATE_REGEX})\b', ctx.search, re.I)
     if not match:
         return
 
@@ -145,7 +148,7 @@ def _on_browser_will_search(ctx) -> None:
     else:
         cids = set()
 
-    remaining = TOKEN_RE.sub("", ctx.search).strip()
+    remaining = re.sub(rf'\btracker:(unsuspended|suspended):({_DATE_REGEX}):({_DATE_REGEX})\b', "", ctx.search, flags=re.I).strip()
     if remaining:
         try:
             found = set(mw.col.find_cards(remaining))
@@ -185,10 +188,59 @@ def _on_browser_did_fetch_row(id, is_note, row, columns) -> None:
         except:
             row.cells[idx].text = ""
 
+def _inject_search(current_search: str, new_token: str) -> str:
+    term_pattern = re.compile(
+        rf'\b(?:tag:{NS}::(?:unsuspended|suspended)::[\d\-*]+|tracker:(?:unsuspended|suspended):{_DATE_REGEX}:{_DATE_REGEX})\b',
+        re.I
+    )
+    
+    # split by OR
+    parts = re.split(r'\s+OR\s+', current_search, flags=re.I)
+    cleaned_parts = [p for p in parts if not term_pattern.search(p)]
+    
+    final_base = " OR ".join(cleaned_parts).strip()
+    
+    final_base = term_pattern.sub("", final_base).strip()
+    
+    if not final_base:
+        return new_token
+    return f"{final_base} {new_token}"
+
+def _open_tracker_dialog(browser) -> None:
+    dialog = DateRangeDialog(browser)
+    if dialog.exec():
+        new_token = dialog.get_search_string()
+        if new_token:
+            search_edit = getattr(browser.form, "searchEdit", getattr(browser.form, "search_edit", None))
+            if search_edit:
+                # QComboBox vs QLineEdit
+                if hasattr(search_edit, "setEditText"):
+                    current_search = search_edit.currentText()
+                    updated_search = _inject_search(current_search, new_token)
+                    search_edit.setEditText(updated_search)
+                else:
+                    current_search = search_edit.text()
+                    updated_search = _inject_search(current_search, new_token)
+                    search_edit.setText(updated_search)
+                browser.onSearchActivated()
+
+def _on_browser_menus_did_init(browser) -> None:
+    # menu action
+    action = QAction("Search Suspensions by Date...", browser)
+    action.triggered.connect(lambda _, b=browser: _open_tracker_dialog(b))
+    
+    # variable menu names
+    for attr in ["menu_Search", "menuSearch", "menu_Cards", "menuCards", "menu_Notes", "menuNotes"]:
+        menu = getattr(browser.form, attr, None)
+        if menu:
+            menu.addAction(action)
+            break
+
 # Hooks
 gui_hooks.profile_did_open.append(_load_snapshot)
 gui_hooks.operation_did_execute.append(_on_operation_did_execute)
 gui_hooks.browser_will_search.append(_on_browser_will_search)
+gui_hooks.browser_menus_did_init.append(_on_browser_menus_did_init)
 
 if HAS_BROWSER_COLUMNS:
     gui_hooks.browser_did_fetch_columns.append(_on_browser_did_fetch_columns)
