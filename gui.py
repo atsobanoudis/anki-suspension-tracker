@@ -1,6 +1,6 @@
 from aqt.qt import *
 from datetime import date, timedelta
-from logic import minimize_dates
+from .logic import minimize_dates
 
 class DateRangeDialog(QDialog):
     def __init__(self, parent=None):
@@ -20,7 +20,7 @@ class DateRangeDialog(QDialog):
         self.start_edit.setCalendarPopup(True)
         self.end_edit = QDateEdit(date.today())
         self.end_edit.setCalendarPopup(True)
-        
+
         range_layout.addWidget(QLabel("Start:"))
         range_layout.addWidget(self.start_edit)
         range_layout.addWidget(QLabel("End:"))
