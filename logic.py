@@ -39,6 +39,16 @@ def minimize_dates(dates: list[date]) -> list[str]:
         if decade < 3:
             start_day = max(1, decade * 10)
             end_day = (decade + 1) * 10
+            # user errors
+            end_day = min(end_day, last_day + 1)
+            # check dates exist
+            decade_dates = {date(year, month, day) for day in range(start_day, end_day)}
+
+            # special case
+            if decade_dates.issubset(date_set) and len(decade_dates) >= 9:
+                 results.append(f"{year}-{month:02}-{decade}*")
+                 processed.update(decade_dates)
+                 continue
         
         # single day
         results.append(d.isoformat())
